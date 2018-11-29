@@ -14,10 +14,11 @@ RUN mkdir -p /temp/docker/shared/
 # but just the ones that were affected
 
 COPY ./shared/install.debian.packages.sh /temp/docker/shared
+RUN ls /temp/docker/shared
 WORKDIR /temp/docker/shared/
 RUN ./install.debian.packages.sh
 
-# RUN apt-get -qq install -y bzip2
+RUN apt-get -qq install -y bzip2
 
 # WORKDIR /temp/docker/android/
 # ADD ./android/android-ndk-4280707-linux-x86_64.tar /temp/docker/android/
@@ -48,15 +49,23 @@ WORKDIR /temp/docker/shared/
 
 # RUN apt-get -qq install -y python-openssl
 
-RUN echo "Preparing Android SDK..." && \
-    wget -qO- http://dl.google.com/android/android-sdk_r23-linux.tgz | \
-    tar xvz -C /usr/local/ && \
-    mv /usr/local/android-sdk-linux /usr/local/android-sdk && \
-    chown -R root:root /usr/local/android-sdk/
+#RUN echo "Preparing Android SDK..." && \
+#   wget -qO- http://dl.google.com/android/android-sdk_r23-linux.tgz | \
+#   tar -xvzf -C /usr/local/ && \
+#   mv /usr/local/android-sdk-linux /usr/local/android-sdk && \
+#   chown -R root:root /usr/local/android-sdk/
+
+# download and install Android SDK
+RUN mkdir -p /usr/local/android-sdk && chmod 777 /usr/local/android-sdk && cd /usr/local/android-sdk && \
+    wget -q $(wget -q -O- 'https://developer.android.com/sdk' | \
+    grep -o "\"https://.*android.*tools.*linux.*\"" | sed "s/\"//g") && \
+    unzip *tools*linux*.zip && \
+    rm *tools*linux*.zip
 
 # Add android tools and platform tools to PATH
 ENV ANDROID_HOME "/usr/local/android-sdk"
 ENV PATH "$PATH:$ANDROID_HOME/tools"
+ENV PATH "$PATH:$ANDROID_HOME/tools/bin"
 ENV PATH "$PATH:$ANDROID_HOME/platform-tools"
 
 # Create fake keymap file
@@ -64,7 +73,7 @@ RUN mkdir /usr/local/android-sdk/tools/keymaps && \
     touch /usr/local/android-sdk/tools/keymaps/en-us
 
 # install the required license for sdk-build-tools
-RUN mkdir -p $ANDROID_HOME/licenses && echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55\n" > $ANDROID_HOME/licenses/android-sdk-license
+# RUN mkdir -p $ANDROID_HOME/licenses && echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55\n" > $ANDROID_HOME/licenses/android-sdk-license
 
 # java must be installed at this point, because the following android CLI commands depend on it
 COPY ./shared/install.jdk.sh /temp/docker/shared
@@ -73,12 +82,15 @@ ENV JAVA_HOME "/opt/jdk/jdk1.8.0_131"
 
 # set up the android emulator & android images for running the unit tests
 # see: https://github.com/tracer0tong/android-emulator
-RUN ( sleep 4 && while [ 1 ]; do sleep 1; echo y; done ) | android update sdk --no-ui --force -a --filter \
-    build-tools-24.0.3,tools,platform-tools,android-19,extra-android-m2repository,sys-img-x86-android-19,sys-img-armeabi-v7a-android-19 && \
-    echo "y" | android update adb
+#RUN ( sleep 4 && while [ 1 ]; do sleep 1; echo y; done ) | android update sdk --no-ui --force -a --filter \
+#    build-tools-24.0.3,tools,platform-tools,android-19,extra-android-m2repository,sys-img-x86-android-19,sys-img-armeabi-v7a-android-19 && \
+#    echo "y" | android update adb
+RUN echo "echoing current path"
+RUN pwd
+RUN sdkmanager 'build-tools;24.0.3' 'platforms;android-19' 'extras;android;m2repository' 'system-images;android-19;default;x86' 'system-images;android-19;default;armeabi-v7a' && yes | sdkmanager --licenses
 
-# now install the rest of the tools that are more lightweight
 COPY ./shared/install.cmake.sh /temp/docker/shared
+WORKDIR /temp/docker/shared
 RUN ./install.cmake.sh
 ENV PATH "$PATH:/opt/cmake/bin"
 
